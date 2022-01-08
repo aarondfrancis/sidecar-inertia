@@ -1,0 +1,39 @@
+{
+    "name": "hammerstone/sidecar-inertia",
+    "description": "A Laravel package to render Inertia apps on AWS Lambda.",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Aaron Francis",
+            "email": "aaron@hammerstone.dev"
+        }
+    ],
+    "require": {
+        "php": "^7.2|^8.0",
+        "hammerstone/sidecar": "v0.3.4",
+        "inertiajs/inertia-laravel": "^0.5.1",
+        "illuminate/support": "^8.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^5.0|^6.0",
+        "mockery/mockery": "^1.3.3",
+        "phpunit/phpunit": "^8.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hammerstone\\Sidecar\\Inertia\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Hammerstone\\Sidecar\\Inertia\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+            ]
+        }
+    }
+}
