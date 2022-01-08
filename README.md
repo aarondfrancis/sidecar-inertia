@@ -1,7 +1,9 @@
 # Sidecar SSR for InertiaJS
 
 > 🚨 This is currently very much in beta!
- 
+
+You can see a fully working Jetstream + Inertia + Sidecar demo repo at [hammerstonedev/sidecar-inertia-demo](https://github.com/hammerstonedev/sidecar-inertia-demo).
+
 ## Overview 
 
 This package provides a Sidecar function to run [Inertia server-side rendering](https://inertiajs.com/server-side-rendering) on AWS Lambda.
@@ -12,8 +14,6 @@ It works with any Laravel 7 or 8 application, hosted anywhere including your loc
 
 - [Sidecar docs](https://hammerstone.dev/sidecar/docs/main/overview)
 - [Sidecar GitHub](https://github.com/hammerstonedev/sidecar)
-
-You can see a fully working Jetstream + Inertia + Sidecar demo app at hammerstone/TODO
 
 ## Enabling SSR
 
