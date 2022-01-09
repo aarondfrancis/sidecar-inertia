@@ -60,7 +60,7 @@ class SSR extends LambdaFunction
             $command[] = '--production';
         }
 
-        Sidecar::log('Running ' . implode($command, ' '));
+        Sidecar::log('Running ' . implode(' ', $command));
 
         $process = new Process($command, $cwd = base_path(), $env = []);
 
