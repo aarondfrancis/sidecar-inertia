@@ -11,7 +11,7 @@
     ],
     "require": {
         "php": "^7.2|^8.0",
-        "hammerstone/sidecar": "v0.3.4",
+        "hammerstone/sidecar": "v0.3.5",
         "inertiajs/inertia-laravel": "^0.5.1",
         "illuminate/support": "^8.0"
     },

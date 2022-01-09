@@ -171,6 +171,7 @@ exports.handler = async function (event) {
         render: renderToString,
         resolve: (name) => require(`./Pages/${name}`),
         setup({app, props, plugin}) {
+            // Pull the ziggy config off of the event.
             // const Ziggy = {
             //     ...event.props.ziggy,
             //     location: new URL(event.props.ziggy.url)
@@ -180,7 +181,6 @@ exports.handler = async function (event) {
                 render: () => h(app, props),
             }).use(plugin).mixin({
                 methods: {
-                    // Pull the ziggy config off of the event.
                     // route: (name, params, absolute, config = Ziggy) => route(name, params, absolute, config),
                 },
             })
