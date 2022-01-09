@@ -1,6 +1,12 @@
 # Changelog
 ## Unreleased 
 
+## v0.0.3 - January 9th, 2022
+
+### Added 
+
+- Added the ability to compile Ziggy into the function itself if requested. 
+
 ## v0.0.2 - January 7th, 2022
 
 ### Fixed
