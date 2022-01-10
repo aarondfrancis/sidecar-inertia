@@ -23,11 +23,9 @@ Following the [official Inertia docs](https://inertiajs.com/server-side-renderin
 - You do not need to `npm install webpack-node-externals`
 - Come back here when you get to the "Building your application" section
 
-### Updating Inertia
-
 Make sure that `inertia/laravel-inertia` is at least version `0.5.1`.
 
-### Installation
+## Installation
 
 To require this package, run the following: 
 
@@ -37,7 +35,7 @@ composer require hammerstone/sidecar-inertia
 
 This will install Sidecar as well.
 
-### Use the Sidecar Gateway 
+## Using the Sidecar Gateway 
 
 Update your `AppServiceProvider` to use the `SidecarGateway` as the default Inertia SSR Gateway
 
@@ -58,7 +56,7 @@ class AppServiceProvider extends ServiceProvider
 }
 ```
 
-### Update Configuration
+### Updating Configuration
 
 Update your `config/inertia.php` to include the Sidecar settings
 
@@ -78,6 +76,9 @@ return [
             
             // Throw exceptions, should they occur.
             'debug' => env('APP_DEBUG', false),
+            
+            // Compile Ziggy routes with the Lambda function.
+            'ziggy' => false
         ],
     ],
 
@@ -85,7 +86,7 @@ return [
 ];
 ```
 
-### Configure Sidecar
+## Configuring Sidecar
 
 If you haven't already, you'll need to configure Sidecar.
 
@@ -117,7 +118,7 @@ return [
 ];
 ```
 
-### Updating Your JavaScript
+## Updating Your JavaScript
 
 > This only covers Vue3, please follow the Inertia docs for Vue2 or React, and please open any issues.
 
@@ -146,6 +147,10 @@ mix
         target: 'node',
         externals: {
             node: true,
+            // Sidecar will ship a file called compiledZiggy as a part of
+            // the package. We don't want webpack to try to inline it
+            // because it doesn't exist at the time webpack runs.
+            // './compiledZiggy': 'require("./compiledZiggy")'
         },
         resolve: {
             alias: {
@@ -164,23 +169,34 @@ import {renderToString} from '@vue/server-renderer'
 import {createInertiaApp} from '@inertiajs/inertia-vue3'
 // import route from 'ziggy';
 
-// This is the Lambda handler that will respond to the Sidecar invocation.
 exports.handler = async function (event) {
+    // This is the file that Sidecar has compiled for us if
+    // this application uses Ziggy. We import it using
+    // this syntax since it may not exist at all.
+    // const compiledZiggy = await import('./compiledZiggy');
+
     return await createInertiaApp({
         page: event,
         render: renderToString,
         resolve: (name) => require(`./Pages/${name}`),
         setup({app, props, plugin}) {
-            // Pull the ziggy config off of the event.
             // const Ziggy = {
-            //     ...event.props.ziggy,
-            //     location: new URL(event.props.ziggy.url)
+            //     // Start with the stuff that may be baked into this Lambda.
+            //     ...(compiledZiggy || {}),
+            // 
+            //     // Then if they passed anything to us via the event,
+            //     // overwrite everything that was baked in.
+            //     ...event?.props?.ziggy,
             // }
+
+            // Construct a new location, since window.location is not available.
+            // Ziggy.location = new URL(Ziggy.url)
 
             return createSSRApp({
                 render: () => h(app, props),
             }).use(plugin).mixin({
                 methods: {
+                    // Use our custom Ziggy object as the config.
                     // route: (name, params, absolute, config = Ziggy) => route(name, params, absolute, config),
                 },
             })
@@ -189,9 +205,22 @@ exports.handler = async function (event) {
 }
 ```
 
-### Ziggy (Optional)
+## Deploying Your SSR Function
 
-If you are using Ziggy, you'll need to pass the Ziggy information along to your Lambda. You can do that by adding the following to your
+After you have added the SSR function to your `sidecar.php`, you should run `php artisan sidecar:deploy --activate` to
+deploy your function. 
+
+This will compile your JavaScript for you as a `beforeDeployment` hook, so you don't have to worry about remembering to do that first.
+
+## Debugging SSR
+
+It's recommended that you deploy your Sidecar function locally so that you can test SSR more quickly. You can run `php artisan sidecar:deploy --activate` from your local machine and your SSR function will be deployed to Lambda.
+
+You can also set `ssr.sidecar.debug` to `true` in your `config/inertia.php` file, so that Sidecar will throw exceptions when SSR fails instead of falling back to client-side rendering. This will help you diagnose issues quickly. 
+
+## Ziggy (Optional)
+
+If you are using Ziggy, you'll need to pass some Ziggy information along to your Lambda. You can do that by adding the following to your
 `HandleInertiaRequests` middleware. 
 
 ```php
@@ -199,8 +228,17 @@ class HandleInertiaRequests extends Middleware
 {
     public function share(Request $request)
     {
+        $ziggy = new Ziggy($group = null, $request->url());
+        $ziggy = $ziggy->toArray();
+
+        // During development, send over the entire Ziggy object, so that
+        // when routes change we don't have to redeploy.  In production,
+        // only send the current URL, as we will bake the Ziggy config
+        // into the Lambda SSR package.
+        $ziggy = app()->environment('production') ? Arr::only($ziggy, 'url') : $ziggy;
+
         return array_merge(parent::share($request), [
-            'ziggy' => (new Ziggy)->toArray()
+            'ziggy' => $ziggy
         ]);
     }
 }
