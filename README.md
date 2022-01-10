@@ -56,7 +56,7 @@ class AppServiceProvider extends ServiceProvider
 }
 ```
 
-### Updating Configuration
+## Updating Configuration
 
 Update your `config/inertia.php` to include the Sidecar settings
 
