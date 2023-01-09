@@ -12,18 +12,11 @@ Sidecar packages, deploys, and executes AWS Lambda functions from your Laravel a
 
 It works with any Laravel 7 or 8 application, hosted anywhere including your local machine, Vapor, Heroku, a shared virtual server, or any other kind of hosting environment.
 
+Both [Webpack](#webpack-instructions) (Laravel Mix) and [Vite](#vite-instructions) are supported.
+
 - [Sidecar docs](https://hammerstone.dev/sidecar/docs/main/overview)
 - [Sidecar GitHub](https://github.com/hammerstonedev/sidecar)
 
-## Enabling SSR
-
-Following the [official Inertia docs](https://inertiajs.com/server-side-rendering#enabling-ssr) on enabling SSR is a good place to start, but there are a few things you can skip:
- 
-- You do not need to `npm install @inertiajs/server`
-- You do not need to `npm install webpack-node-externals`
-- Come back here when you get to the "Building your application" section
-
-Make sure that `inertia/laravel-inertia` is at least version `0.5.1`.
 
 ## Installation
 
@@ -56,7 +49,197 @@ class AppServiceProvider extends ServiceProvider
 }
 ```
 
-## Updating Configuration
+## Vite Instructions
+If your app uses Webpack (Laravel Mix), skip to the [Webpack Instructions](#webpack-instructions).
+
+### Enabling SSR
+
+If you just installed a fresh Laravel Jetstream app with the --ssr flag, you can skip this step.
+
+Make sure that `inertia/laravel-inertia` is at least version `0.5.1`.
+
+Add `@inertiaHead` to the end of the `<head>` section of your `app.blade.php` file:
+```html
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+    ...
+    @inertiaHead
+  </head>
+  <body>
+    @inertia
+  </body>
+</html>
+```
+
+Publish the `inertia.php` config to your config folder if it doesn't exist:
+`php artisan vendor:publish --provider="Inertia\ServiceProvider"`
+
+### Updating Configuration
+
+Update your `config/inertia.php` to include the Sidecar settings
+
+```php
+<?php
+
+return [
+    'ssr' => [
+        'enabled' => true,
+
+        'sidecar' => [
+            // The Sidecar function that handles the SSR for Vite builds.
+            'handler' => \Hammerstone\Sidecar\Inertia\ViteSSR::class,
+            
+            // Log some stats on how long each Lambda request takes.
+            'timings' => false,
+            
+            // Throw exceptions, should they occur.
+            'debug' => env('APP_DEBUG', false),
+            
+            // Compile Ziggy routes with the Lambda function.
+            'ziggy' => false
+        ],
+    ],
+
+    // ...
+];
+```
+
+### Configuring Sidecar
+
+If you haven't already, you'll need to configure Sidecar.
+
+Publish the `sidecar.php` configuration file by running 
+
+```shell
+php artisan sidecar:install
+```
+
+To configure your Sidecar AWS credentials interactively, you can run 
+
+```shell
+php artisan sidecar:configure
+```
+
+The [official Sidecar docs](https://hammerstone.dev/sidecar/docs/main/configuration) go into much further detail.
+
+Now update your `config/sidecar.php` to include the function shipped with this package.
+
+```php
+<?php
+
+return [
+    'functions' => [
+        \Hammerstone\Sidecar\Inertia\ViteSSR::class
+    ],
+    
+    // ...
+];
+```
+
+### Updating Your JavaScript
+
+> This only covers Vue3, please follow the Inertia docs for Vue2 or React, and please open any issues.
+
+Update your `vite.config.js` to include the following. If you're using [Ziggy](https://github.com/tighten/ziggy), you'll want to uncomment the Ziggy stuff:
+
+```js
+import { defineConfig } from "vite";
+import laravel from "laravel-vite-plugin";
+import vue from "@vitejs/plugin-vue";
+
+export default defineConfig({
+    plugins: [
+        laravel({
+            input: "resources/js/app.js",
+            ssr: "resources/js/ssr.js",
+            refresh: true,
+        }),
+        vue({
+            template: {
+                transformAssetUrls: {
+                    base: null,
+                    includeAbsolute: false,
+                },
+            },
+        }),
+    ],
+    // Uncomment the following if using Ziggy:
+    // build: {
+    //     rollupOptions: {
+    //         external: ["./compiledZiggy.mjs"],
+    //     },
+    // },
+    ssr: {
+        noExternal: ["@inertiajs/server"],
+    },
+});
+```
+
+And update your `resources/js/ssr.js` to look something like this. The specifics may vary based on your application. 
+
+```js
+import { createSSRApp, h } from "vue";
+import { renderToString } from "@vue/server-renderer";
+import { createInertiaApp } from "@inertiajs/inertia-vue3";
+import { resolvePageComponent } from "laravel-vite-plugin/inertia-helpers";
+// import { ZiggyVue } from "../../vendor/tightenco/ziggy/dist/vue.m";
+
+const appName = "Laravel";
+
+export async function handler(event) {
+    // This is the file that Sidecar has compiled for us if
+    // this application uses Ziggy. We import it using
+    // this syntax since it may not exist at all.
+    // const compiledZiggy = await import("./compiledZiggy.mjs");
+
+    return await createInertiaApp({
+        page: event,
+        render: renderToString,
+        resolve: (name) =>
+            resolvePageComponent(
+                `./Pages/${name}.vue`,
+                import.meta.glob("./Pages/**/*.vue")
+            ),
+        setup({ app, props, plugin }) {
+            // const Ziggy = {
+            //     // Start with the stuff that may be baked into this Lambda.
+            //     ...(compiledZiggy?.default || {}),
+
+            //     // Then if they passed anything to us via the event,
+            //     // overwrite everything that was baked in.
+            //     ...event?.props?.ziggy,
+            // };
+
+            // // Construct a new location, since window.location is not available.
+            // Ziggy.location = new URL(Ziggy.location);
+
+            return createSSRApp({
+                render: () => h(app, props),
+            })
+                .use(plugin)
+                // .use(ZiggyVue, Ziggy);
+        },
+    });
+}
+```
+
+Now, continue to [Deploying Your SSR Function](#deploying-your-ssr-function)
+
+## Webpack Instructions
+
+### Enabling SSR
+
+Following the [official Inertia docs](https://inertiajs.com/server-side-rendering#enabling-ssr) on enabling SSR is a good place to start, but there are a few things you can skip:
+ 
+- You do not need to `npm install @inertiajs/server`
+- You do not need to `npm install webpack-node-externals`
+- Come back here when you get to the "Building your application" section
+
+Make sure that `inertia/laravel-inertia` is at least version `0.5.1`.
+
+### Updating Configuration
 
 Update your `config/inertia.php` to include the Sidecar settings
 
@@ -86,7 +269,7 @@ return [
 ];
 ```
 
-## Configuring Sidecar
+### Configuring Sidecar
 
 If you haven't already, you'll need to configure Sidecar.
 
@@ -118,7 +301,7 @@ return [
 ];
 ```
 
-## Updating Your JavaScript
+### Updating Your JavaScript
 
 > This only covers Vue3, please follow the Inertia docs for Vue2 or React, and please open any issues.
 
@@ -228,8 +411,7 @@ class HandleInertiaRequests extends Middleware
 {
     public function share(Request $request)
     {
-        $ziggy = new Ziggy($group = null, $request->url());
-        $ziggy = $ziggy->toArray();
+        $ziggy = (new Ziggy())->toArray();
 
         // During development, send over the entire Ziggy object, so that
         // when routes change we don't have to redeploy.  In production,
@@ -237,6 +419,10 @@ class HandleInertiaRequests extends Middleware
         // into the Lambda SSR package.
         $ziggy = app()->environment('production') ? Arr::only($ziggy, 'url') : $ziggy;
 
+        $ziggy = array_merge($ziggy, [
+            'location' => $request->url()
+        ]);
+        
         return array_merge(parent::share($request), [
             'ziggy' => $ziggy
         ]);
